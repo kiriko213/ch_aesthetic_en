@@ -1,0 +1,14 @@
+{
+    "aesthetic_en": {
+        "profile_name": "GlobeGuess",
+        "channel_id": "UCfBZv2BMI3U5-oI1NICNXag",
+        "voice": "en-US-ChristopherNeural",
+        "bgm": "bgm.mp3",
+        "tags": "#travel #mystery #aesthetic #nature #shorts #guesswhere",
+        "task_list_name": "My Tasks",
+        "pexels_api_key": "3OfpfSdk7zLAplKzkkaWa5K4ldXHiomdAyhNcxulIS6T5BMDaHNbGtxR",
+        "gemini_api_key": "AIzaSyASMIG0h84SAWpMhnGIXqgxapJ03xlzZnc",
+        "target_animal": "nature aesthetic",
+        "forbidden_animals": ["dog", "cat", "hamster"]
+    }
+}
