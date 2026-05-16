@@ -185,21 +185,12 @@ async def assemble_video_professional(script, asset_path, asset_type, bgm_path, 
     if asset_type == "video" and asset_path:
         clip = VideoFileClip(asset_path).without_audio()
         
-        # 1. 1080x1920 (9:16) に完全に一致するアスペクト比で中央切り抜き（クロップ）
-        target_ratio = 1080 / 1920
-        clip_ratio = clip.w / clip.h
-        
-        if clip_ratio > target_ratio:
-            # 横幅が広すぎる場合、高さを基準にして幅を削る
-            new_w = int(clip.h * target_ratio)
-            bg_cropped = clip.crop(x_center=clip.w/2, y_center=clip.h/2, width=new_w, height=clip.h)
-        else:
-            # 縦が長すぎる場合、幅を基準にして高さを削る
-            new_h = int(clip.w / target_ratio)
-            bg_cropped = clip.crop(x_center=clip.w/2, y_center=clip.h/2, width=clip.w, height=new_h)
-            
-        # 2. トリミングした映像を、縦横比を一切歪ませずにジャスト1080x1920にリサイズする
-        bg = bg_cropped.resize(newsize=(1080, 1920))
+        # 縦横比を完全に維持したまま、まずは高さを1920に合わせる
+        clip_resized = clip.resize(height=1920)
+        if clip_resized.w < 1080:
+            clip_resized = clip.resize(width=1080)
+        # 中央の1080x1920だけを正確に切り抜く
+        bg = clip_resized.crop(x_center=clip_resized.w/2, y_center=clip_resized.h/2, width=1080, height=1920)
         bg = bg.fx(vfx.loop, duration=duration) if bg.duration < duration else bg.subclip(0, duration)
     else:
         bg = ColorClip(size=(1080, 1920), color=(30, 30, 30)).set_duration(duration)
