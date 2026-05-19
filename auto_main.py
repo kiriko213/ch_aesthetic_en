@@ -60,8 +60,8 @@ async def run_auto_post(work_dir=".", topic=None):
         if "topics" in p and p["topics"]:
             topics = p["topics"]
         elif "aesthetic" in profile_key:
-            # 旅行・地理・景観チャンネル向けトピック
-            topics = ["Beautiful landscape spots", "Famous historical landmarks", "Stunning geographical wonders", "Aesthetic nature travel", "Mystery travel destinations"]
+            # GlobeGuess向けトピック
+            topics = ["Stunning hidden gems", "Visually shocking landscapes", "Cinematic global paradise", "Mysterious geography secrets", "Breathtaking world wonders"]
         elif "pawvana" in profile_key:
             # 癒やし・マインドフルネス・スピリチュアル向けトピック
             topics = ["Relaxing pet meditation", "Calm puppy relaxation", "Peaceful nature music", "Mindfulness for pets", "Soothing pet stories"]
@@ -120,7 +120,7 @@ async def run_auto_post(work_dir=".", topic=None):
         
         title, script_content, search_query = "", "", ""
         current_feedback = None
-        max_attempts = 5
+        max_attempts = 2
         
         channel_auditor_path = os.path.join(work_dir, "auditor.py")
         has_auditor = os.path.exists(channel_auditor_path)
@@ -131,7 +131,10 @@ async def run_auto_post(work_dir=".", topic=None):
         # チャンネルの文脈（ターゲット動物など）を構築
         target_animal = p.get('target_animal', 'pets')
         forbidden = ", ".join(p.get('forbidden_animals', []))
-        channel_context = f"This channel is dedicated to {target_animal}. DO NOT mention: {forbidden}."
+        if "aesthetic" in profile_key:
+            channel_context = "This channel is named 'GlobeGuess'. It is an ultra-high-impact viral geography trivia channel. The content must present a visually stunning, cinematic location or hidden gem, deliver 2 intense or shocking geographical facts about it, and challenge the viewer to guess the country before the caption reveals it. DO NOT mention pets or animals."
+        else:
+            channel_context = f"This channel is dedicated to {target_animal}. DO NOT mention: {forbidden}."
         
         for attempt in range(1, max_attempts + 1):
             print(f"ATTEMPT {attempt}/{max_attempts}: Generating script...")
