@@ -29,7 +29,7 @@ def generate_viral_script(topic="health", channel_context="", api_key=None, feed
         else:
             genai.configure(api_key=api_key)
     
-    model = genai.GenerativeModel('gemini-2.0-flash-lite')
+    model = genai.GenerativeModel('gemini-1.5-flash')
     
     feedback_section = ""
     if feedback:
