@@ -3,18 +3,89 @@ import google.generativeai as genai
 import datetime
 import re
 
+_cached_selected_model = None
+
+def get_available_gemini_models():
+    """Retrieve list of available models supporting generateContent."""
+    try:
+        models = list(genai.list_models())
+        available = []
+        for m in models:
+            methods = getattr(m, 'supported_generation_methods', [])
+            if 'generateContent' in methods:
+                name = getattr(m, 'name', str(m)).replace('models/', '')
+                available.append(name)
+        return available
+    except Exception as e:
+        print(f"[Gemini Discovery] Warning: Failed to list models via API: {e}")
+        return []
+
+def extract_version_tuple(model_name):
+    """Extracts version numbers as tuple for sorting, e.g. 'gemini-2.5-flash' -> (2, 5)."""
+    matches = re.findall(r'\d+(?:\.\d+)?', model_name)
+    if matches:
+        try:
+            parts = matches[0].split('.')
+            return tuple(int(p) for p in parts)
+        except ValueError:
+            pass
+    return ()
+
+def select_best_model(available_models, exclude_models=None):
+    """Select model by priority: GEMINI_MODEL -> Latest stable Flash -> Latest stable Flash Lite -> Any stable generateContent model."""
+    if exclude_models is None:
+        exclude_models = set()
+
+    env_model = os.environ.get("GEMINI_MODEL")
+    if env_model:
+        clean_env = env_model.replace('models/', '')
+        if clean_env not in exclude_models and (not available_models or clean_env in available_models):
+            return clean_env
+
+    candidates = [m for m in available_models if m not in exclude_models]
+
+    stable_candidates = [m for m in candidates if not any(x in m.lower() for x in ["exp", "preview", "test", "experimental"])]
+    pool = stable_candidates if stable_candidates else candidates
+
+    # 2. Latest stable Flash model (flash in name, but not lite)
+    flash_models = [m for m in pool if "flash" in m.lower() and "lite" not in m.lower()]
+    if flash_models:
+        flash_models.sort(key=extract_version_tuple, reverse=True)
+        return flash_models[0]
+
+    # 3. Latest stable Flash Lite model
+    lite_models = [m for m in pool if "lite" in m.lower()]
+    if lite_models:
+        lite_models.sort(key=extract_version_tuple, reverse=True)
+        return lite_models[0]
+
+    # 4. Any stable model supporting generateContent
+    if pool:
+        pool.sort(key=extract_version_tuple, reverse=True)
+        return pool[0]
+
+    return env_model or "gemini-2.5-flash"
+
 def generate_viral_script(topic="health", channel_context="", api_key=None, feedback=None, language="en"):
     """
     実行役: 動画の台本を生成する。
     """
+    global _cached_selected_model
+
     if not api_key:
         api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GEMINI_KEY")
 
     if api_key:
         genai.configure(api_key=api_key)
 
-    MODEL_NAME = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
-    model = genai.GenerativeModel(MODEL_NAME)
+    if not _cached_selected_model:
+        available_models = get_available_gemini_models()
+        print(f"[Gemini Discovery] Available models: {available_models}")
+        _cached_selected_model = select_best_model(available_models)
+        print(f"[Gemini Discovery] Selected model: {_cached_selected_model}")
+
+    current_model_name = _cached_selected_model
+    model = genai.GenerativeModel(current_model_name)
     
     feedback_section = ""
     if feedback:
@@ -82,28 +153,40 @@ def generate_viral_script(topic="health", channel_context="", api_key=None, feed
     try:
         response = model.generate_content(prompt)
         text = response.text
-        
-        # Titleの抽出（大文字小文字を区別せず、最悪の場合のフォールバックを徹底）
-        title_match = re.search(r"(?:Title|TITLE):\s*(.*)", text)
-        title = title_match.group(1).strip() if title_match else f"Insights on {topic}"
-        
-        # Contentの抽出（Content: から PexelsKeyword: までの間を正確に切り出す）
-        content_match = re.search(r"(?:Content|CONTENT):\s*(.*?)(?=(?:PexelsKeyword|PEXELS|\Z))", text, re.DOTALL)
-        if content_match and content_match.group(1).strip():
-            content = content_match.group(1).strip()
-        else:
-            # 抽出失敗時の3秒フォールバックを阻止、テキスト全体からゴミを削って台本とする
-            content = text.replace(f"Title: {title}", "").strip()
-
-        # PexelsKeywordの抽出
-        keyword_match = re.search(r"(?:PexelsKeyword|Pexels|KEYWORDS):\s*(.*)", text, re.IGNORECASE)
-        keyword = "nature" if language != "ja" else "animal"
-        if keyword_match:
-            keyword = keyword_match.group(1).strip()
-            # 台本側に入り込んだキーワード行を完全に消去
-            content = content.replace(keyword_match.group(0), "").strip()
-            
-        return title, content, keyword
     except Exception as e:
-        print(f"FATAL: Gemini Generation Error: {e}")
-        raise
+        err_str = str(e).lower()
+        retry_triggers = ["not_found", "not found", "404", "deprecated", "unavailable", "429", "resource_exhausted", "quota"]
+        if any(trigger in err_str for trigger in retry_triggers):
+            print(f"[Gemini Fallback] Error with model '{current_model_name}': {e}")
+            available_models = get_available_gemini_models()
+            fallback_model_name = select_best_model(available_models, exclude_models={current_model_name})
+            print(f"[Gemini Fallback] Fallback model: {fallback_model_name}")
+            _cached_selected_model = fallback_model_name
+            fallback_model = genai.GenerativeModel(fallback_model_name)
+            response = fallback_model.generate_content(prompt)
+            text = response.text
+        else:
+            print(f"FATAL: Gemini Generation Error: {e}")
+            raise
+
+    # Titleの抽出（大文字小文字を区別せず、最悪の場合のフォールバックを徹底）
+    title_match = re.search(r"(?:Title|TITLE):\s*(.*)", text)
+    title = title_match.group(1).strip() if title_match else f"Insights on {topic}"
+    
+    # Contentの抽出（Content: から PexelsKeyword: までの間を正確に切り出す）
+    content_match = re.search(r"(?:Content|CONTENT):\s*(.*?)(?=(?:PexelsKeyword|PEXELS|\Z))", text, re.DOTALL)
+    if content_match and content_match.group(1).strip():
+        content = content_match.group(1).strip()
+    else:
+        # 抽出失敗時の3秒フォールバックを阻止、テキスト全体からゴミを削って台本とする
+        content = text.replace(f"Title: {title}", "").strip()
+
+    # PexelsKeywordの抽出
+    keyword_match = re.search(r"(?:PexelsKeyword|Pexels|KEYWORDS):\s*(.*)", text, re.IGNORECASE)
+    keyword = "nature" if language != "ja" else "animal"
+    if keyword_match:
+        keyword = keyword_match.group(1).strip()
+        # 台本側に入り込んだキーワード行を完全に消去
+        content = content.replace(keyword_match.group(0), "").strip()
+        
+    return title, content, keyword
