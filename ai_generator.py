@@ -13,7 +13,7 @@ def generate_viral_script(topic="health", channel_context="", api_key=None, feed
     if api_key:
         genai.configure(api_key=api_key)
 
-    MODEL_NAME = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+    MODEL_NAME = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
     model = genai.GenerativeModel(MODEL_NAME)
     
     feedback_section = ""
