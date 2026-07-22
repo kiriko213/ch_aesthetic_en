@@ -7,29 +7,14 @@ def generate_viral_script(topic="health", channel_context="", api_key=None, feed
     """
     実行役: 動画の台本を生成する。
     """
-    if api_key:
-        import json
-        import os
-        from google.oauth2 import service_account
+    if not api_key:
+        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GEMINI_KEY")
 
-        service_account_str = os.environ.get("GEMINI_SERVICE_ACCOUNT")
-        credentials = None
-        if service_account_str:
-            try:
-                info = json.loads(service_account_str)
-                credentials = service_account.Credentials.from_service_account_info(info)
-            except Exception:
-                if os.path.exists(service_account_str):
-                    try:
-                        credentials = service_account.Credentials.from_service_account_file(service_account_str)
-                    except Exception:
-                        pass
-        if credentials:
-            genai.configure(credentials=credentials)
-        else:
-            genai.configure(api_key=api_key)
-    
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    if api_key:
+        genai.configure(api_key=api_key)
+
+    MODEL_NAME = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+    model = genai.GenerativeModel(MODEL_NAME)
     
     feedback_section = ""
     if feedback:
