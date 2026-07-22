@@ -3,6 +3,7 @@ import requests
 import random
 import re
 import edge_tts
+import gtts
 from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip, AudioFileClip, ImageClip, ColorClip, concatenate_videoclips, CompositeAudioClip, vfx, afx
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import numpy as np
@@ -105,21 +106,33 @@ def create_boxed_text_image(text, size=(1080, 1920), fontsize=60):
         
     return img
 
-async def generate_speech(text, output_path, voice="ja-JP-NanamiNeural", rate="+10%"):
+async def generate_speech(text, output_path, voice="ja-JP-NanamiNeural", rate="+5%"):
     """
-    edge-ttsを使用して音声を生成する。gTTSは使用しない。
+    音声合成を行い、ファイルが正しく生成されたかチェックする。
+    edge_ttsがGitHub Actionsで403エラーになる場合、gTTSにフォールバックする。
     """
-    lang = "ja" if "ja-JP" in voice else "en"
-    clean_text = normalize_text_for_speech(text, language=lang)
-    
+    edge_tts_ver = getattr(edge_tts, '__version__', 'unknown')
+    print(f"[SPEECH_LOG] Voice: {voice} | edge-tts Version: {edge_tts_ver} | Rate: {rate}")
     try:
-        communicate = edge_tts.Communicate(clean_text, voice, rate=rate)
+        print(f"[SPEECH_LOG] Selected TTS Engine: edge-tts")
+        communicate = edge_tts.Communicate(text, voice, rate=rate)
         await communicate.save(output_path)
         if not os.path.exists(output_path) or os.path.getsize(output_path) < 100:
-            raise Exception("Audio generation failed.")
+            raise Exception("Generated audio file is empty or too small.")
+        print(f"[SPEECH_LOG] Successfully generated speech using TTS Engine: edge-tts")
     except Exception as e:
-        print(f"Speech Generation Error: {e}")
-        raise
+        print(f"[SPEECH_LOG] edge-tts Error: {e}, falling back to gTTS...")
+        try:
+            lang = "ja" if "ja-JP" in voice else "en"
+            print(f"[SPEECH_LOG] Selected TTS Engine: gTTS (Fallback)")
+            tts = gtts.gTTS(text=text, lang=lang)
+            tts.save(output_path)
+            if not os.path.exists(output_path) or os.path.getsize(output_path) < 100:
+                raise Exception("gTTS output is empty.")
+            print(f"[SPEECH_LOG] Successfully generated speech using TTS Engine: gTTS (Fallback)")
+        except Exception as fallback_e:
+            print(f"[SPEECH_LOG] gTTS Fallback Error: {fallback_e}")
+            raise
 
 async def fetch_best_visual(query, api_key, target_animal="dog", forbidden_animals=["cat"], work_dir="."):
     """
