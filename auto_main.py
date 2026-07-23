@@ -61,7 +61,28 @@ async def run_auto_post(work_dir=".", topic=None):
             topics = p["topics"]
         elif "aesthetic" in profile_key:
             # GlobeGuess向けトピック
-            topics = ["Stunning hidden gems", "Visually shocking landscapes", "Cinematic global paradise", "Mysterious geography secrets", "Breathtaking world wonders"]
+            topics = [
+                "Forbidden places normal humans can never visit",
+                "Strictly illegal locations sealed off by governments",
+                "Dangerous hidden paradise you are not allowed to enter",
+                "Geographical anomalies science still cannot explain",
+                "Places on Earth that look completely alien",
+                "Natural phenomena that break the laws of physics",
+                "Bizarre geography secrets that shock scientists",
+                "Terrifying places found on Google Earth",
+                "Real locations that look like glitching video games",
+                "Surreal places that don't feel real on camera",
+                "Mysterious underwater holes hidden in the ocean",
+                "Glowing rivers and alien waters found on Earth",
+                "Deadly yet breathtaking natural wonders",
+                "Submerged ancient cities hidden beneath the sea",
+                "Secret natural wonders hidden inside deep caves",
+                "Visually shocking landscapes buried in mountains",
+                "Unreal places on Earth you must see before you die",
+                "The most isolated secret paradise on the planet",
+                "Magical glowing caves that look like another dimension",
+                "Ancient mystery spots hidden deep inside jungles"
+            ]
         elif "pawvana" in profile_key:
             # 癒やし・マインドフルネス・スピリチュアル向けトピック
             topics = ["Relaxing pet meditation", "Calm puppy relaxation", "Peaceful nature music", "Mindfulness for pets", "Soothing pet stories"]

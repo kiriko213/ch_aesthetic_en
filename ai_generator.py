@@ -1,8 +1,32 @@
 import os
 import json
+import random
 import google.generativeai as genai
 import datetime
 import re
+
+HOOK_PATTERNS = [
+    {
+        "type": "REALITY_SHATTERING",
+        "instruction": "Start with a short, reality-shattering claim that instantly stops scrolling. Example: 'Stop believing this place is CGI.' or 'This isn't another planet, it's Earth.'"
+    },
+    {
+        "type": "FORBIDDEN_SECRET",
+        "instruction": "Start with a mysterious, forbidden secret hook. Example: 'The one place governments don't want you to see.' or 'Nobody is allowed to step foot here.'"
+    },
+    {
+        "type": "WARNING_SURPASS",
+        "instruction": "Start with a high-urgency or thrilling warning hook. Example: 'Step here and you won't survive 5 minutes.' or 'Do NOT visit this place alone.'"
+    },
+    {
+        "type": "INTERACTIVE_CHALLENGE",
+        "instruction": "Start with a high-impact country guessing challenge. Example: 'Can you guess this impossible country in 3 seconds?' or 'Only 1% of viewers know this spot.'"
+    },
+    {
+        "type": "IMMERSIVE_CURIOSITY",
+        "instruction": "Start with an immersive, hypothetical question. Example: 'What happens if you fall into this glowing hole?' or 'Imagine waking up in this hidden world.'"
+    }
+]
 
 _cached_selected_model = None
 
@@ -127,6 +151,10 @@ def generate_viral_script(topic="health", channel_context="", api_key=None, feed
         ===========================================================================
         """
 
+    selected_hook = random.choice(HOOK_PATTERNS)
+    hook_instruction = selected_hook["instruction"]
+    print(f"[HOOK_TRIGGER] Selected hook pattern: {selected_hook['type']}")
+
     feedback_section = ""
     if feedback:
         feedback_section = f"""
@@ -147,7 +175,7 @@ def generate_viral_script(topic="health", channel_context="", api_key=None, feed
         {history_section}
         
         === 構成ルール（Ultra-Tight 15s Golden Ratio） ===
-        1. 【0〜3秒：フック】必ず「〜って知ってた？」や「〜と思ってない？」という全角疑問符（？）付きの強力な問いかけから開始すること（語尾を上げるイントネーションを確定させるため）。（例：「猫のひげって飾りじゃないって知ってた？」）
+        1. 【0〜3秒：フック】{hook_instruction}（語尾を上げるイントネーションや問いかけ、衝撃的な主張で引き込むこと）。
         2. 【3〜12秒：コア】意外な事実や雑学の核心を、短い2つの文（2セクション）でテンポよく伝えること。
         3. 【12〜15秒：結び】必ず「みんなは知ってた？」「コメントで教えてね！」等のコメント誘導、または強い共感文（1文）で締めること。
         
@@ -174,9 +202,8 @@ def generate_viral_script(topic="health", channel_context="", api_key=None, feed
         {history_section}
         
         === STRUCTURE (Ultra-Tight 15s Golden Ratio) ===
-        1. [0-3s: Hook] Start with a very short, punchy question ending with a question mark (?).
+        1. [0-3s: Hook] {hook_instruction}
            - AVOID cliches like "Did you know...?" or "What if I told you...?"
-           - USE high-impact, ultra-short hooks instead (e.g., "Ever seen...?", "Think you know this...?", "Doing this?").
         2. [3-12s: Core] Deliver the surprising facts or core insight in exactly two ultra-short, action-oriented sentences. Strip away unnecessary adjectives and adverbs. Keep it under 12 seconds total.
         3. [12-15s: Closing] End with a short, comment-triggering question or strong empathetic call (1 sentence, e.g., "Think so? Comment below!", "What do you think?").
         
