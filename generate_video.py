@@ -136,7 +136,7 @@ async def generate_speech(text, output_path, voice="ja-JP-NanamiNeural", rate="+
 
 async def fetch_best_visual(query, api_key, target_animal="dog", forbidden_animals=["cat"], work_dir="."):
     """
-    対象動物と禁止キーワードを厳格に指定してPexelsから動画を検索する。
+    対象動物と禁止キーワードを厳格に指定してPexelsから複数動画を検索し、最大3本の動画パスのリストを返す。
     """
     headers = {"Authorization": api_key}
     
@@ -161,11 +161,27 @@ async def fetch_best_visual(query, api_key, target_animal="dog", forbidden_anima
             v_data = res.json()
             if v_data.get('videos'):
                 videos = v_data['videos']
-                target_video = next((v for v in videos if v['duration'] >= 12), videos[0])
-                best_file = [f for f in target_video['video_files'] if f['width'] >= 720][0]
-                path = os.path.join(work_dir, "temp_bg.mp4")
-                with open(path, 'wb') as f: f.write(requests.get(best_file['link']).content)
-                return path, "video"
+                downloaded_paths = []
+                for v in videos:
+                    video_files = [f for f in v.get('video_files', []) if f.get('width', 0) >= 720]
+                    if not video_files and v.get('video_files'):
+                        video_files = v['video_files']
+                    if video_files:
+                        best_file = video_files[0]
+                        path = os.path.join(work_dir, f"temp_bg_{len(downloaded_paths)}.mp4")
+                        v_res = requests.get(best_file['link'])
+                        with open(path, 'wb') as f:
+                            f.write(v_res.content)
+                        downloaded_paths.append(path)
+                        if len(downloaded_paths) >= 3:
+                            break
+                
+                # 取得数が3本未満の場合は再利用して3本にするフォールバック
+                if downloaded_paths:
+                    base_count = len(downloaded_paths)
+                    while len(downloaded_paths) < 3:
+                        downloaded_paths.append(downloaded_paths[len(downloaded_paths) % base_count])
+                    return downloaded_paths, "video"
         except Exception as e:
             print(f"[WARN] Pexels Search Error for '{q}': {e}")
             continue
@@ -195,16 +211,42 @@ async def assemble_video_professional(script, asset_path, asset_type, bgm_path, 
     duration = min(curr, 15.0) 
     final_audio_content = CompositeAudioClip(audio_clips)
     
+    bg_clips_to_close = []
     if asset_type == "video" and asset_path:
-        clip = VideoFileClip(asset_path).without_audio()
+        path_list = asset_path if isinstance(asset_path, list) else [asset_path]
+        processed_clips = []
         
-        # 縦横比を完全に維持したまま、まずは高さを1920に合わせる
-        clip_resized = clip.resize(height=1920)
-        if clip_resized.w < 1080:
-            clip_resized = clip.resize(width=1080)
-        # 中央の1080x1920だけを正確に切り抜く
-        bg = clip_resized.crop(x_center=clip_resized.w/2, y_center=clip_resized.h/2, width=1080, height=1920)
-        bg = bg.fx(vfx.loop, duration=duration) if bg.duration < duration else bg.subclip(0, duration)
+        for p_path in path_list[:3]:
+            try:
+                c_raw = VideoFileClip(p_path).without_audio()
+                bg_clips_to_close.append(c_raw)
+                
+                # 1. 縦横比を維持したまま、完全に「1080x1920」にリサイズおよび中央クロップ
+                c_resized = c_raw.resize(height=1920)
+                if c_resized.w < 1080:
+                    c_resized = c_resized.resize(width=1080)
+                c_cropped = c_resized.crop(x_center=c_resized.w/2, y_center=c_resized.h/2, width=1080, height=1920)
+                bg_clips_to_close.extend([c_resized, c_cropped])
+                
+                # 2. 5秒間切り出し（足らない場合はループ）
+                c_sub = c_cropped.subclip(0, min(5.0, c_cropped.duration)) if c_cropped.duration >= 5.0 else c_cropped.fx(vfx.loop, duration=5.0)
+                bg_clips_to_close.append(c_sub)
+                
+                # 3. 軽量なズームインと色調補正（彩度・コントラスト微調整）
+                c_zoomed = c_sub.resize(lambda t: 1.0 + 0.03 * t)
+                c_processed = c_zoomed.fx(vfx.colorx, 1.08)
+                bg_clips_to_close.extend([c_zoomed, c_processed])
+                
+                processed_clips.append(c_processed)
+            except Exception as clip_err:
+                print(f"[WARN] Failed to process clip {p_path}: {clip_err}")
+                
+        if processed_clips:
+            bg_concat = concatenate_videoclips(processed_clips, method="compose")
+            bg_clips_to_close.append(bg_concat)
+            bg = bg_concat.fx(vfx.loop, duration=duration) if bg_concat.duration < duration else bg_concat.subclip(0, duration)
+        else:
+            bg = ColorClip(size=(1080, 1920), color=(30, 30, 30)).set_duration(duration)
     else:
         bg = ColorClip(size=(1080, 1920), color=(30, 30, 30)).set_duration(duration)
 
@@ -238,8 +280,12 @@ async def assemble_video_professional(script, asset_path, asset_type, bgm_path, 
         
         # クリップの解放 (Windowsでのファイルロック対策)
         video.close()
-        if asset_type == "video":
-            bg.close()
+        bg.close()
+        for c in bg_clips_to_close:
+            try:
+                c.close()
+            except Exception:
+                pass
         for s in subs:
             s.close()
         final_audio.close()
