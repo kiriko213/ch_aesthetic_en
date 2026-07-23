@@ -205,6 +205,30 @@ async def run_auto_post(work_dir=".", topic=None):
             print("FATAL: Could not generate valid script in max attempts.")
             sys.exit(1)
 
+        # 生成完了後、今回生成されたタイトルとトピックを generated_history.json に追記保存
+        history_path = os.path.join(work_dir, "generated_history.json")
+        history_data = []
+        if os.path.exists(history_path):
+            try:
+                with open(history_path, "r", encoding="utf-8") as f:
+                    history_data = json.load(f)
+            except Exception as e:
+                print(f"[HISTORY_WARN] Failed to read history file: {e}")
+                history_data = []
+
+        history_data.append({
+            "title": title,
+            "topic": topic,
+            "script_content": script_content,
+            "timestamp": datetime.datetime.now().isoformat()
+        })
+        try:
+            with open(history_path, "w", encoding="utf-8") as f:
+                json.dump(history_data, f, ensure_ascii=False, indent=2)
+            print(f"[HISTORY] Saved generated item to: {history_path}")
+        except Exception as e:
+            print(f"[HISTORY_ERROR] Failed to save history: {e}")
+
         # 3. 素材取得
         print(f"STEP: Fetching visual for '{search_query}'")
         pexels_key = (

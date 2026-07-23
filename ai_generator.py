@@ -1,4 +1,5 @@
 import os
+import json
 import google.generativeai as genai
 import datetime
 import re
@@ -66,7 +67,7 @@ def select_best_model(available_models, exclude_models=None):
 
     return env_model or "gemini-2.5-flash"
 
-def generate_viral_script(topic="health", channel_context="", api_key=None, feedback=None, language="en"):
+def generate_viral_script(topic="health", channel_context="", api_key=None, feedback=None, language="en", history=None):
     """
     実行役: 動画の台本を生成する。
     """
@@ -86,7 +87,46 @@ def generate_viral_script(topic="health", channel_context="", api_key=None, feed
 
     current_model_name = _cached_selected_model
     model = genai.GenerativeModel(current_model_name)
-    
+
+    if history is None:
+        history_file = "generated_history.json"
+        if not os.path.exists(history_file):
+            try:
+                with open(history_file, "w", encoding="utf-8") as f:
+                    json.dump([], f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+        if os.path.exists(history_file):
+            try:
+                with open(history_file, "r", encoding="utf-8") as f:
+                    history = json.load(f)
+            except Exception:
+                history = []
+        else:
+            history = []
+
+    history_section = ""
+    if history:
+        recent_items = history[-50:]
+        covered_list = []
+        for item in recent_items:
+            if isinstance(item, dict):
+                t_title = item.get("title", "")
+                t_topic = item.get("topic", "")
+                entry = f"Title: {t_title}" if t_title else ""
+                if t_topic:
+                    entry += f" (Topic: {t_topic})" if entry else f"Topic: {t_topic}"
+                if entry:
+                    covered_list.append(f"- {entry}")
+            elif isinstance(item, str):
+                covered_list.append(f"- {item}")
+        if covered_list:
+            history_section = f"""
+        === RECENTLY COVERED LOCATIONS/TOPICS (NEVER REPEAT OR DUPLICATE THESE) ===
+        {chr(10).join(covered_list)}
+        ===========================================================================
+        """
+
     feedback_section = ""
     if feedback:
         feedback_section = f"""
@@ -94,7 +134,7 @@ def generate_viral_script(topic="health", channel_context="", api_key=None, feed
         {feedback}
         ==============================================================
         """
- 
+
     if language == "ja":
         prompt = f"""
         あなたはプロのYouTubeショート動画プロデューサーです。日本の視聴者向けに。
@@ -104,6 +144,7 @@ def generate_viral_script(topic="health", channel_context="", api_key=None, feed
         {channel_context}
         
         {feedback_section}
+        {history_section}
         
         === 構成ルール（Ultra-Tight 15s Golden Ratio） ===
         1. 【0〜3秒：フック】必ず「〜って知ってた？」や「〜と思ってない？」という全角疑問符（？）付きの強力な問いかけから開始すること（語尾を上げるイントネーションを確定させるため）。（例：「猫のひげって飾りじゃないって知ってた？」）
@@ -130,6 +171,7 @@ def generate_viral_script(topic="health", channel_context="", api_key=None, feed
         {channel_context}
         
         {feedback_section}
+        {history_section}
         
         === STRUCTURE (Ultra-Tight 15s Golden Ratio) ===
         1. [0-3s: Hook] Start with a very short, punchy question ending with a question mark (?).
