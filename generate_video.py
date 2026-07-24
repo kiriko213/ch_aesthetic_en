@@ -111,6 +111,11 @@ async def generate_speech(text, output_path, voice="ja-JP-NanamiNeural", rate="+
     音声合成を行い、ファイルが正しく生成されたかチェックする。
     edge_ttsがGitHub Actionsで403エラーになる場合、gTTSにフォールバックする。
     """
+    text = text.strip() if text else ""
+    if not text:
+        print("[SPEECH_LOG] generate_speech called with empty or None text. Skipping TTS generation.")
+        return
+
     edge_tts_ver = getattr(edge_tts, '__version__', 'unknown')
     print(f"[SPEECH_LOG] Voice: {voice} | edge-tts Version: {edge_tts_ver} | Rate: {rate}")
     try:
