@@ -237,9 +237,9 @@ async def assemble_video_professional(script, asset_path, asset_type, bgm_path, 
                 c_sub = c_cropped.subclip(0, min(5.0, c_cropped.duration)) if c_cropped.duration >= 5.0 else c_cropped.fx(vfx.loop, duration=5.0)
                 bg_clips_to_close.append(c_sub)
                 
-                # 3. 軽量なズームインと色調補正（彩度・コントラスト微調整）
+                # 3. 軽量なズームインと色調補正（彩度・コントラスト微調整）および左右反転
                 c_zoomed = c_sub.resize(lambda t: 1.0 + 0.03 * t)
-                c_processed = c_zoomed.fx(vfx.colorx, 1.08)
+                c_processed = c_zoomed.fx(vfx.colorx, 1.08).fx(vfx.mirror_x)
                 bg_clips_to_close.extend([c_zoomed, c_processed])
                 
                 processed_clips.append(c_processed)
